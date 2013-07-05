@@ -43,7 +43,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
     /**
      * Load the given data array to the record.
      *
-     * @param array|stdClass $data
+     * @param array|\stdClass $data
      */
     public function __construct($data = array())
     {
@@ -89,6 +89,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      *
      * @param string $key
      * @param mixed $value
+     * @return $this
      */
     public function set($key, $value)
     {
@@ -96,6 +97,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
             $key = self::PREFIX.$key;
             $this->$key = $value;
         }
+        return $this;
     }
 
     /**
@@ -103,16 +105,18 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      *
      * @param string $key
      * @param mixed $value
+     * @return $this
      */
     public function __set($key, $value)
     {
-        return $this->set($key, $value);
+        $this->set($key, $value);
+        return $this;
     }
 
     /**
      * Load the given data array to the record.
      *
-     * @param array|stdClass $data
+     * @param array|\stdClass $data
      */
     public function load($data)
     {
@@ -231,7 +235,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      */
     public function getIterator()
     {
-        return new ArrayIterator($this->dump());
+        return new ArrayIterator($this->toArray());
     }
 
     /**

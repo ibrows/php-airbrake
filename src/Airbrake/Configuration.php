@@ -1,7 +1,7 @@
 <?php
 namespace Airbrake;
 
-use Airbrake\Exception as AirbrakeException;
+use Airbrake\Exception;
 
 /**
  * Airbrake configuration class.
@@ -37,7 +37,7 @@ class Configuration extends Record
      * Load the given data array to the record.
      *
      * @param string $apiKey
-     * @param array|stdClass $data
+     * @param array|\stdClass $data
      */
     public function __construct($apiKey, $data = array())
     {
@@ -94,11 +94,13 @@ class Configuration extends Record
 
     /**
      * Verify that the configuration is complete.
+     *
+     * @throws Exception
      */
     public function verify()
     {
         if (!$this->apiKey) {
-            throw new AirbrakeException('Cannot initialize the Airbrake client without an ApiKey being set to the configuration.');
+            throw new Exception('Cannot initialize the Airbrake client without an ApiKey being set to the configuration.');
         }
     }
 }

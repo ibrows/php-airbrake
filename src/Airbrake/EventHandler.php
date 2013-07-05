@@ -17,9 +17,20 @@ class EventHandler
      * The singleton instance
      */
     protected static $instance = null;
+
+    /**
+     * @var Client
+     */
     protected $airbrakeClient  = null;
+
+    /**
+     * @var bool
+     */
     protected $notifyOnWarning = null;
 
+    /**
+     * @var array
+     */
     protected $warningErrors = array(\E_NOTICE            => 'Notice',
                                      \E_STRICT            => 'Strict',
                                      \E_USER_WARNING      => 'User Warning',
@@ -31,6 +42,9 @@ class EventHandler
                                      \E_COMPILE_WARNING   => 'Compile Warning',
                                      \E_RECOVERABLE_ERROR => 'Recoverable Error' );
 
+    /**
+     * @var array
+     */
     protected $fatalErrors = array(\E_ERROR             => 'Error',
                                    \E_PARSE             => 'Parse',
                                    \E_COMPILE_ERROR     => 'Compile Error',
@@ -38,9 +52,10 @@ class EventHandler
                                    \E_USER_ERROR        => 'User Error' );
 
     /**
-     * Build with the Airbrake client class.
+     * Build with the Airbrake client class
      *
-     * @param Airbrake\Client $client
+     * @param Client $client
+     * @param bool $notifyOnWarning
      */
     public function __construct(Client $client, $notifyOnWarning)
     {
@@ -95,6 +110,7 @@ class EventHandler
      * @param string $file
      * @param string $line
      * @param array $context
+     * @throws Exception
      * @return bool
      */
     public function onError($type, $message, $file = null, $line = null, $context = null)
@@ -174,6 +190,6 @@ class EventHandler
             )
         );
 
-        $this->airbrakeClient->notifyOnError('[Improper Shutdown] '.$message, $backtrace);
+        $this->airbrakeClient->notifyOnError('[Improper Shutdown] '. $error['message'], $backtrace);
     }
 }

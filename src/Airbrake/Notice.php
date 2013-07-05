@@ -36,7 +36,7 @@ class Notice extends Record
     /**
      * Convert the notice to xml
      *
-     * @param Airbrake\Configuration $configuration
+     * @param Configuration $configuration
      * @return string
      */
     public function toXml(Configuration $configuration)

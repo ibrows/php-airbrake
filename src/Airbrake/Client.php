@@ -20,7 +20,6 @@ class Client
     /**
      * Build the Client with the Airbrake Configuration.
      *
-     * @throws Airbrake\Exception
      * @param Configuration $configuration
      */
     public function __construct(Configuration $configuration)
@@ -60,7 +59,7 @@ class Client
     /**
      * Notify on an exception
      *
-     * @param Airbrake\Notice $notice
+     * @param Exception $exception
      * @return string
      */
     public function notifyOnException(Exception $exception)
@@ -81,14 +80,15 @@ class Client
      * If there is a PHP Resque client given in the configuration, then use that to queue up a job to
      * send this out later. This should help speed up operations.
      *
-     * @param Airbrake\Notice $notice
+     * @param Notice $notice
+     * @return string
      */
     public function notify(Notice $notice)
     {
         if (class_exists('Resque') && $this->configuration->queue) {
             $data = array('notice' => serialize($notice), 'configuration' => serialize($this->configuration));
             \Resque::enqueue($this->configuration->queue, 'Airbrake\\Resque\\NotifyJob', $data);
-            return;
+            return null;
         }
 
         return $this->connection->send($notice);
