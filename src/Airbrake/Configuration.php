@@ -16,7 +16,7 @@ use Airbrake\Exception as AirbrakeException;
 class Configuration extends Record
 {
     protected $_apiKey;
-    protected $_timeout = 2;
+    protected $_timeout = 10;
     protected $_environmentName = 'production';
     protected $_serverData;
     protected $_getData;
