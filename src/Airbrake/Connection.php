@@ -17,7 +17,7 @@ class Connection
     /**
      * Build the object with the airbrake Configuration.
      *
-     * @param Airbrake\Configuration $configuration
+     * @param Configuration $configuration
      */
     public function __construct(Configuration $configuration)
     {
@@ -32,7 +32,7 @@ class Connection
     /**
      * Add a header to the connection.
      *
-     * @param string header
+     * @param string|array $header
      */
     public function addHeader($header)
     {
@@ -40,7 +40,7 @@ class Connection
     }
 
     /**
-     * @param Airbrake\Notice $notice
+     * @param Notice $notice
      * @return string
      **/
     public function send(Notice $notice)
