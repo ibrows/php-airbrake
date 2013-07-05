@@ -1,5 +1,5 @@
 {
-    "name": "dbtlr/php-airbrake",
+    "name": "ibrows/php-airbrake",
     "type": "library",
     "description": "A PHP 5.3 library for sending errors to the Airbrake.io service.",
     "keywords": ["airbrake", "exceptions", "errors", "logging"],
