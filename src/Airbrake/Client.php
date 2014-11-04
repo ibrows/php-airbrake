@@ -60,7 +60,7 @@ class Client
      * Notify on an exception
      *
      * @param Exception $exception
-     * @return string
+     * @return bool
      */
     public function notifyOnException(Exception $exception)
     {
@@ -81,14 +81,14 @@ class Client
      * send this out later. This should help speed up operations.
      *
      * @param Notice $notice
-     * @return string
+     * @return bool
      */
     public function notify(Notice $notice)
     {
         if (class_exists('Resque') && $this->configuration->queue) {
             $data = array('notice' => serialize($notice), 'configuration' => serialize($this->configuration));
             \Resque::enqueue($this->configuration->queue, 'Airbrake\\Resque\\NotifyJob', $data);
-            return null;
+            return true;
         }
 
         return $this->connection->send($notice);
