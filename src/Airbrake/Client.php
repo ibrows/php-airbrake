@@ -35,7 +35,7 @@ class Client
      *
      * @param string $message
      * @param array $backtrace
-     * @return string
+     * @return bool
      */
     public function notifyOnError($message, array $backtrace = null)
     {
