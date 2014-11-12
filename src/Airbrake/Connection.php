@@ -13,6 +13,7 @@ class Connection
 {
     protected $configuration = null;
     protected $headers = array();
+    protected $lastResponse = null;
 
     /**
      * Build the object with the airbrake Configuration.
@@ -23,10 +24,12 @@ class Connection
     {
         $this->configuration = $configuration;
 
-        $this->addHeader(array(
-            'Accept: text/xml, application/xml',
-            'Content-Type: text/xml'
-        ));
+        $this->addHeader(
+            array(
+                'Accept: text/xml, application/xml',
+                'Content-Type: text/xml'
+            )
+        );
     }
 
     /**
@@ -55,12 +58,33 @@ class Connection
         curl_setopt($curl, CURLOPT_TIMEOUT, $this->configuration->timeout);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $xml);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $this->headers);
+        curl_setopt($curl, CURLOPT_HEADER, 1);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
 
-        $return = curl_exec($curl);
+        $exec = curl_exec($curl);
+
+        list($headers, $response) = explode("\r\n\r\n", $exec, 2);
         curl_close($curl);
 
-        return $return;
+        $this->lastResponse = $response;
+        $headers = explode("\n", $headers);
+
+        foreach ($headers as $header) {
+            if (stripos($header, 'Status:') !== false) {
+                return false !== stripos($header, '200 OK');
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return string
+     */
+    public function getLastResponse()
+    {
+        return $this->lastResponse;
     }
 }
