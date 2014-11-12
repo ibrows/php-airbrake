@@ -11,6 +11,6 @@ class NotifyJob
         $configuration = unserialize($this->args['configuration']);
 
         $connection = new Connection($configuration);
-        echo $connection->send($notice);
+        return $connection->send($notice);
     }
 }
