@@ -64,20 +64,9 @@ class Connection
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
 
         $exec = curl_exec($curl);
-
-        list($headers, $response) = explode("\r\n\r\n", $exec, 2);
         curl_close($curl);
 
-        $this->lastResponse = $response;
-        $headers = explode("\n", $headers);
-
-        foreach ($headers as $header) {
-            if (stripos($header, 'Status:') !== false) {
-                return false !== stripos($header, '200 OK');
-            }
-        }
-
-        return false;
+        return false !== stripos($exec, 'Status: 200 OK');
     }
 
     /**
