@@ -2,6 +2,9 @@
 namespace Airbrake;
 
 use Exception;
+use Airbrake\EventFilter\Error\ErrorReporting as ErrorReporting;
+use Airbrake\EventFilter\Error\NotifyOnWarning as NotifyOnWarning;
+use Airbrake\EventFilter\Exception\AirbrakeExceptionFilter as AirbrakeExceptionFilter;
 
 /**
  * Airbrake EventHandler class.
@@ -27,6 +30,9 @@ class EventHandler
      * @var bool
      */
     protected $notifyOnWarning = null;
+
+    protected $onErrorFilters = array();
+    protected $onExceptionFilters = array();
 
     /**
      * @var array
@@ -57,10 +63,29 @@ class EventHandler
      * @param Client $client
      * @param bool $notifyOnWarning
      */
-    public function __construct(Client $client, $notifyOnWarning)
+    public function __construct(Client $client, $notifyOnWarning = false)
     {
-        $this->notifyOnWarning = $notifyOnWarning;
+        if (!$notifyOnWarning) {
+            $this->addErrorFilter(new NotifyOnWarning());
+        }
+
         $this->airbrakeClient = $client;
+    }
+
+    /**
+     * @return self
+     */
+    public static function getInstance()
+    {
+        return self::$instance;
+    }
+
+    /**
+     * @return Client
+     */
+    public function getClient()
+    {
+        return $this->airbrakeClient;
     }
 
     /**
@@ -71,13 +96,19 @@ class EventHandler
      * @param array $options
      * @return EventHandler
      */
-    public static function start($apiKey, $notifyOnWarning=false, array $options=array())
+    public static function start($apiKey, $notifyOnWarning = false, array $options = array())
     {
-        if ( !isset(self::$instance)) {
+        if (!isset(self::$instance)) {
             $config = new Configuration($apiKey, $options);
 
             $client = new Client($config);
             self::$instance = new self($client, $notifyOnWarning);
+
+            if (null !== $config->get('errorReportingLevel')) {
+                self::$instance->addErrorFilter(new ErrorReporting($config));
+            }
+
+            self::$instance->addExceptionFilter(new AirbrakeExceptionFilter());
 
             set_error_handler(array(self::$instance, 'onError'));
             set_exception_handler(array(self::$instance, 'onException'));
@@ -87,6 +118,31 @@ class EventHandler
         return self::$instance;
     }
 
+    /**
+     * Add an error filter that is applied to any errors before posting them
+     * to your airbrake server.
+     * @see http://us3.php.net/manual/en/function.set-error-handler.php
+     * @param EventFilter\Error\FilterInterface $filter
+     * @return EventHandler
+     */
+    public function addErrorFilter(EventFilter\Error\FilterInterface $filter)
+    {
+        $this->onErrorFilters[] = $filter;
+        return $this;
+    }
+
+    /**
+     * Add an error filter that is applied to any exceptions before posting them
+     * to your airbrake server.
+     * @see http://us3.php.net/manual/en/function.set-exception-handler.php
+     * @param EventFilter\Exception\FilterInterface $filter
+     * @return EventHandler
+     */
+    public function addExceptionFilter(EventFilter\Exception\FilterInterface $filter)
+    {
+        $this->onExceptionFilters[] = $filter;
+        return $this;
+    }
 
     /**
      * Revert the handlers back to their original state.
@@ -104,6 +160,7 @@ class EventHandler
     /**
      * Catches standard PHP style errors
      *
+     * @throws Exception
      * @see http://us3.php.net/manual/en/function.set-error-handler.php
      * @param int $type
      * @param string $message
@@ -124,7 +181,7 @@ class EventHandler
             throw new Exception($message);
         }
 
-        if ($this->notifyOnWarning && isset ($this->warningErrors[$type])) {
+        if ($this->shouldNotifyError($type, $message, $file, $line, $context)) {
             // Make sure we pass in the current backtrace, minus this function call.
             $backtrace = debug_backtrace();
             array_shift($backtrace);
@@ -136,17 +193,52 @@ class EventHandler
         return true;
     }
 
+    /**
+     * @param int $type
+     * @param string $message
+     * @param string $file
+     * @param int $line
+     * @param null $context
+     * @return bool
+     */
+    private function shouldNotifyError($type, $message, $file, $line, $context = null)
+    {
+        foreach ($this->onErrorFilters as $filter) {
+            /** @var \Airbrake\EventFilter\Error\FilterInterface $filter */
+            if (!$filter->shouldSendError($type, $message, $file, $line, $context)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @param \Exception $exception
+     * @return bool
+     */
+    private function shouldNotifyException($exception)
+    {
+        foreach ($this->onExceptionFilters as $filter) {
+            /** @var \Airbrake\EventFilter\Exception\FilterInterface $filter */
+            if (!$filter->shouldSendException($exception)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * Catches uncaught exceptions.
      *
      * @see http://us3.php.net/manual/en/function.set-exception-handler.php
-     * @param Exception $exception
+     * @param \Exception $exception
      * @return bool
      */
-    public function onException(Exception $exception)
+    public function onException(\Exception $exception)
     {
-        $this->airbrakeClient->notifyOnException($exception);
+        if ($this->shouldNotifyException($exception)) {
+            $this->airbrakeClient->notifyOnException($exception);
+        }
 
         return true;
     }
@@ -176,7 +268,7 @@ class EventHandler
         }
 
         // Don't notify on warning if not configured to.
-        if (!$this->notifyOnWarning && isset($this->warningErrors[$error['type']])) {
+        if (!$this->shouldNotifyError($error['type'], $error['message'], $error['file'], $error['line'])) {
             return;
         }
 
@@ -190,6 +282,6 @@ class EventHandler
             )
         );
 
-        $this->airbrakeClient->notifyOnError('[Improper Shutdown] '. $error['message'], $backtrace);
+        $this->airbrakeClient->notifyOnError('[Improper Shutdown] '.$error['message'], $backtrace);
     }
 }

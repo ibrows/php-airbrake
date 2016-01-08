@@ -1,7 +1,9 @@
 <?php
 namespace Airbrake;
 
-use ArrayAccess, IteratorAggregate, ArrayIterator;
+use ArrayAccess;
+use IteratorAggregate;
+use ArrayIterator;
 
 /**
  * A record abstract that can help accelerate building models.
@@ -12,15 +14,16 @@ use ArrayAccess, IteratorAggregate, ArrayIterator;
  * <pre>
  * class Person extends Record
  * {
- *     protected $_FirstName;
- *     protected $_LastName;
- *     protected $_Age;
+ *     protected $dataStore = array(
+ *         'FirstName' => 'Harry',
+ *         'LastName'  => 'Potter',
+ *     );
  * }
  * </pre>
  *
- * Now you can simply retrieve these properties by requesting them by their key name
- * minus the prefixed '_'. So, if you were to call ->get( 'FirstName' ) it would
- * retrieve that key for you. Similarly, you can call set( 'FirstName', 'Drew' ) and
+ * Now you can simply retrieve these properties by requesting them by their key name.
+ * So, if you were to call ->get('FirstName') it would
+ * retrieve that key for you. Similarly, you can call set('FirstName', 'Drew') and
  * it will set that key. Give load() an array or stdClass of key value pairs and it
  * will parse those into their matching keys. Any key that is given that does not
  * exist in the parameters will be ignored.
@@ -37,8 +40,7 @@ use ArrayAccess, IteratorAggregate, ArrayIterator;
  */
 abstract class Record implements ArrayAccess, IteratorAggregate
 {
-    const PREFIX = '_';
-
+    protected $dataStore = array();
 
     /**
      * Load the given data array to the record.
@@ -63,8 +65,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
     public function get($key)
     {
         if ($this->exists($key)) {
-            $key = self::PREFIX.$key;
-            return $this->$key;
+            return $this->dataStore[$key];
         }
 
         return null;
@@ -94,8 +95,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
     public function set($key, $value)
     {
         if ($this->exists($key)) {
-            $key = self::PREFIX.$key;
-            $this->$key = $value;
+            $this->dataStore[$key] = $value;
         }
         return $this;
     }
@@ -136,22 +136,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      */
     public function toArray()
     {
-        $data = array();
-        $vars = get_object_vars($this);
-
-        foreach ($vars as $key => $value) {
-            if ($key[0] === self::PREFIX) {
-                $key = substr($key, 1, strlen($key) - 1);
-
-                if ($value instanceof Record) {
-                    $value = $value->toArray();
-                }
-
-                $data[$key] = $value;
-            }
-        }
-
-        return $data;
+        return $this->dataStore;
     }
 
     /**
@@ -162,7 +147,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      */
     public function exists($key)
     {
-        return property_exists($this, self::PREFIX.$key);
+        return array_key_exists($key, $this->dataStore);
     }
 
     /**
@@ -172,7 +157,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      */
     public function getKeys()
     {
-        return array_keys($this->toArray());
+        return array_keys($this->dataStore);
     }
 
     /**
@@ -195,7 +180,7 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      *
      * Part of the ArrayAccess interface.
      *
-     * @return string $key
+     * @param string $key
      * @return bool
      */
     public function offsetExists($key)
@@ -235,11 +220,14 @@ abstract class Record implements ArrayAccess, IteratorAggregate
      */
     public function getIterator()
     {
-        return new ArrayIterator($this->toArray());
+        return new ArrayIterator($this->dataStore);
     }
 
     /**
      * Optional method to declare that will initialize the data on construct.
      */
-    protected function initialize() {}
+    protected function initialize()
+    {
+
+    }
 }

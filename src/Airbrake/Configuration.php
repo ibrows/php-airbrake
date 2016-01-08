@@ -15,23 +15,35 @@ use Airbrake\Exception;
  */
 class Configuration extends Record
 {
-    protected $_apiKey;
-    protected $_timeout = 10;
-    protected $_environmentName = 'production';
-    protected $_serverData;
-    protected $_getData;
-    protected $_postData;
-    protected $_sessionData;
-    protected $_component;
-    protected $_action;
-    protected $_projectRoot;
-    protected $_url;
-    protected $_hostname;
-    protected $_queue;
-    protected $_secure = false;
-    protected $_host = 'api.airbrake.io';
-    protected $_resource = '/notifier_api/v2/notices';
-    protected $_apiEndPoint;
+    /** @var array  */
+    protected $dataStore = array(
+        'apiKey' => null,
+        'timeout' => null,
+        'environmentName' => 'production',
+        'serverData' => null,
+        'getData' => null,
+        'postData' => null,
+        'sessionData' => null,
+        'component' => null,
+        'action' => null,
+        'projectRoot' => null,
+        'url' => null,
+        'hostname' => null,
+        'appVersion' => null,
+        'secure' => false,
+        'host' => 'api.airbrake.io',
+        'resource' => '/notifier_api/v2/notices',
+        'apiEndPoint' => null,
+        'errorReportingLevel' => null,
+        'extraParameters' => null,
+        'proxyHost' => null,
+        'proxyPort' => 80,
+        'proxyUser' => null,
+        'proxyPass' => null
+    );
+
+    /** @var array */
+    protected $parameterFilters = array();
 
     /**
      * Load the given data array to the record.
@@ -50,46 +62,128 @@ class Configuration extends Record
      */
     protected function initialize()
     {
-        if (!$this->serverData) {
-            $this->serverData = (array) $_SERVER;
+        if ($this->get('serverData') === null) {
+            $this->set('serverData', (array) $_SERVER);
         }
 
-        if (!$this->getData) {
-            $this->getData = (array) $_GET;
+        if ($this->get('getData') === null) {
+            $this->set('getData', (array) $_GET);
         }
 
-        if (!$this->postData) {
-            $this->postData = (array) $_POST;
+        if ($this->get('postData') === null) {
+            $this->set('postData', (array) $_POST);
         }
 
-        if (!$this->sessionData && isset($_SESSION)) {
-            $this->sessionData = (array) $_SESSION;
+        if ($this->get('sessionData') === null && isset($_SESSION)) {
+            $this->set('sessionData', (array) $_GET);
         }
 
-        if (!$this->projectRoot) {
-            $this->projectRoot = isset($this->serverData['_']) ? $this->serverData['_'] : $this->serverData['DOCUMENT_ROOT'];
+        $serverData = $this->get('serverData');
+
+        if (!$this->get('projectRoot')) {
+            $projectRoot = isset($serverData['_']) ? $serverData['_'] : $serverData['DOCUMENT_ROOT'];
+            $this->set('projectRoot', $projectRoot);
         }
 
-        if (!$this->url) {
-            $this->url = isset($this->serverData['REDIRECT_URL']) ? $this->serverData['REDIRECT_URL'] : $this->serverData['SCRIPT_NAME'];
+        if (!$this->get('url')) {
+            if (isset($serverData['REDIRECT_URL'])) {
+                $this->set('url', $serverData['REDIRECT_URL']);
+            } elseif (isset($serverData['SCRIPT_NAME'])) {
+                $this->set('url', $serverData['SCRIPT_NAME']);
+            }
         }
 
-        if (!$this->hostname) {
-            $this->hostname = isset($this->serverData['HTTP_HOST']) ? $this->serverData['HTTP_HOST'] : 'No Host';
+        if (!$this->get('hostname')) {
+            $this->set('hostname', isset($serverData['HTTP_HOST']) ? $serverData['HTTP_HOST'] : 'No Host');
         }
 
-        $protocol = $this->secure ? 'https' : 'http';
-        $this->apiEndPoint = $this->apiEndPoint ?: $protocol.'://'.$this->host.$this->resource;
+        $protocol = $this->get('secure') ? 'https' : 'http';
+        $endPoint = $this->get('apiEndPoint') ?: $protocol . '://' . $this->get('host') . $this->get('resource');
+        $this->set('apiEndPoint', $endPoint);
     }
 
     /**
-     * Get the combined server parameters.
+     * Get the combined server parameters. Note that these parameters will be
+     * filtered according to a black list of key names to ignore. If you wish to
+     * get the unfiltered results you should use the getUnfilteredParameters
+     * method instead.
      *
      * @return array
      */
     public function getParameters()
     {
+        $parameters = $this->getUnfilteredParameters();
+        foreach ($this->parameterFilters as $filter) {
+            /** @var \Airbrake\Filter\FilterInterface $filter */
+            $filter->filter($parameters);
+        }
+        return $parameters;
+    }
+
+    /**
+     * Get the combined server parameters without applying the registered
+     * filters
+     *
+     * @return array
+     */
+    public function getUnfilteredParameters()
+    {
         return array_merge($this->get('postData'), $this->get('getData'));
+    }
+
+    /**
+     * Adds an entry to a black list of GET/POST parameter key names which
+     * should not be sent to the Airbrake server. This should be used to prevent
+     * sensitive information, such as passwords or credit card details from
+     * leaving your application server via error logging.
+     *
+     * Nested keys are treated like html form names - e.g. the key name
+     * my_form[id] would stop the value inside $_POST['my_form']['id']
+     * from being sent.
+     *
+     * @param string|Filter\FilterInterface $keyName
+     * @return self
+     */
+    public function addFilter($keyName)
+    {
+        if (!$keyName instanceof Filter\FilterInterface) {
+            $keyName = new Filter($keyName);
+        }
+
+        $this->parameterFilters[] = $keyName;
+        return $this;
+    }
+
+    /**
+     * Adds an array of entries to a black list of GET/POST parameter key names
+     * which should not be sent to the Airbrake server. This should be used to
+     * prevent sensitive information, such as passwords or credit card details
+     * from leaving your application server via error logging.
+     *
+     * Nested keys are treated like html form names - e.g. the key name
+     * my_form[id] would stop the value inside $_POST['my_form']['id']
+     * from being sent.
+     *
+     * @param array $keyNames
+     * @return Configuration
+     */
+    public function addFilters($keyNames)
+    {
+        array_map(array($this, 'addFilter'), $keyNames);
+
+        return $this;
+    }
+
+    /**
+     * Clears the GET/POST request key name black list.
+     *
+     * @return Configuration
+     */
+    public function clearFilters()
+    {
+        $this->parameterFilters = array();
+
+        return $this;
     }
 
     /**
@@ -99,8 +193,10 @@ class Configuration extends Record
      */
     public function verify()
     {
-        if (!$this->apiKey) {
-            throw new Exception('Cannot initialize the Airbrake client without an ApiKey being set to the configuration.');
+        if (!$this->get('apiKey')) {
+            throw new AirbrakeException(
+                'Cannot initialize the Airbrake client without an ApiKey being set to the configuration.'
+            );
         }
     }
 }

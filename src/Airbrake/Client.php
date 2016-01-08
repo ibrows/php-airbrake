@@ -2,6 +2,7 @@
 namespace Airbrake;
 
 use Exception;
+use Airbrake\Connection\ConnectionInterface;
 
 /**
  * Airbrake client class.
@@ -13,13 +14,19 @@ use Exception;
  */
 class Client
 {
+    /** @var Configuration|null  */
     protected $configuration = null;
+
+    /** @var Connection|null  */
     protected $connection = null;
+
+    /** @var null */
     protected $notice = null;
 
     /**
      * Build the Client with the Airbrake Configuration.
      *
+     * @throws Exception
      * @param Configuration $configuration
      */
     public function __construct(Configuration $configuration)
@@ -31,13 +38,35 @@ class Client
     }
 
     /**
+     * Override the default Connection
+     *
+     * @throws Exception
+     * @param ConnectionInterface $connection
+     * @return self
+     */
+    public function setConnection(ConnectionInterface $connection)
+    {
+        $this->connection = $connection;
+        return $this;
+    }
+
+    /**
+     * @return Configuration
+     */
+    public function getConfiguration()
+    {
+        return $this->configuration;
+    }
+
+    /**
      * Notify on an error message.
      *
      * @param string $message
      * @param array $backtrace
+     * @param null $extraParams
      * @return bool
      */
-    public function notifyOnError($message, array $backtrace = null)
+    public function notifyOnError($message, array $backtrace = null, $extraParams = null)
     {
         if (!$backtrace) {
             $backtrace = debug_backtrace();
@@ -48,9 +77,10 @@ class Client
 
         $notice = new Notice;
         $notice->load(array(
-            'errorClass'   => 'PHP Error',
+            'errorClass'   => 'PHP::Error',
             'backtrace'    => $backtrace,
             'errorMessage' => $message,
+            'extraParameters'  => $extraParams,
         ));
 
         return $this->notify($notice);
@@ -59,16 +89,18 @@ class Client
     /**
      * Notify on an exception
      *
-     * @param Exception $exception
+     * @param Exception $e
+     * @param null $extraParams
      * @return bool
      */
-    public function notifyOnException(Exception $exception)
+    public function notifyOnException(Exception $e, $extraParams = null)
     {
         $notice = new Notice;
         $notice->load(array(
-            'errorClass'   => get_class($exception),
-            'backtrace'    => $this->cleanBacktrace($exception->getTrace() ?: debug_backtrace()),
-            'errorMessage' => $exception->getMessage().' in '.$exception->getFile().' on line '.$exception->getLine(),
+            'errorClass'       => get_class($e),
+            'backtrace'        => $this->cleanBacktrace($e->getTrace() ?: debug_backtrace()),
+            'errorMessage'     => $e->getMessage().' in '.$this->cleanFilePath($e->getFile()).' on line '.$e->getLine(),
+            'extraParameters'  => $extraParams,
         ));
 
         return $this->notify($notice);
@@ -103,9 +135,18 @@ class Client
     protected function cleanBacktrace($backtrace)
     {
         foreach ($backtrace as &$item) {
+            if (isset($item['file'])) {
+                $item['file'] = $this->cleanFilePath($item['file']);
+            }
             unset($item['args']);
         }
 
         return $backtrace;
+    }
+
+    protected function cleanFilePath($filePath)
+    {
+        $projectRoot = $this->configuration->get('projectRoot');
+        return empty($projectRoot) ? $filePath : preg_replace("#^$projectRoot#", '[project_root]', $filePath);
     }
 }
